@@ -33,7 +33,7 @@ HITS pool.root to flat ntuple. Requires athena (uses the HitAnalysis package).
 | `hits` | one or more input HITS files |
 | `-o, --output` | output ntuple (default `hits.ntuple.root`) |
 | `-n, --max-events` | events to read (default all) |
-| `--no-trt` | skip the TRT trees |
+| `--trt` | also dump the TRT trees (off by default: large and slow) |
 
 ## display_cli
 
@@ -52,6 +52,7 @@ Ntuple to figures. Needs numpy, matplotlib, PyROOT.
 | `--r-max`, `--z-max` | drawn volume in mm (default 1100, 3000) |
 | `--no-analytic` | omit the analytic trajectory |
 | `--hide-other-hits` | draw quirk hits only |
+| `--trt` | draw TRT hits if the ntuple has them (off by default) |
 | `--format` | `png`, `pdf`, `svg` |
 
 ## Plots

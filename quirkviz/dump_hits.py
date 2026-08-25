@@ -10,7 +10,8 @@ def main():
     ap.add_argument("hits", nargs="+", help="input HITS pool.root file(s)")
     ap.add_argument("-o", "--output", default="hits.ntuple.root")
     ap.add_argument("-n", "--max-events", type=int, default=-1)
-    ap.add_argument("--no-trt", action="store_true", help="skip the TRT trees")
+    ap.add_argument("--trt", action="store_true",
+                    help="also dump the TRT trees (large and slow to fill)")
     args = ap.parse_args()
 
     from AthenaConfiguration.AllConfigFlags import initConfigFlags
@@ -35,7 +36,7 @@ def main():
     # ExtraTruthBranches adds the per-hit pdgId used to select quirk hits.
     cfg.merge(PixelHitAnalysisCfg(flags, ExtraTruthBranches=True))
     cfg.merge(SCTHitAnalysisCfg(flags, ExtraTruthBranches=True))
-    if not args.no_trt:
+    if args.trt:
         cfg.merge(TRTHitAnalysisCfg(flags))
     cfg.merge(TruthHitAnalysisCfg(flags))
 

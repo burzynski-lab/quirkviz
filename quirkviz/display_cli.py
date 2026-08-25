@@ -42,6 +42,8 @@ def main(argv=None):
                     help="frame on the quirk activity instead of the whole ID")
     ap.add_argument("--no-analytic", action="store_true")
     ap.add_argument("--hide-other-hits", action="store_true")
+    ap.add_argument("--trt", action="store_true",
+                    help="draw TRT hits if the ntuple has them")
     ap.add_argument("--format", default="png", choices=("png", "pdf", "svg"))
     args = ap.parse_args(argv)
 
@@ -59,6 +61,8 @@ def main(argv=None):
             return 1
         for i in indices:
             evt = nt.event(i)
+            if not args.trt:
+                evt.hits.pop("TRT", None)
             truth = evt.quirk_truth()
             analytic, subtitle = None, ""
             if truth and not args.no_analytic:
