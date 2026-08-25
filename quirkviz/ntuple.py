@@ -26,6 +26,10 @@ class HitSet:
     y: np.ndarray
     z: np.ndarray
     pdg: Optional[np.ndarray] = None
+    # The TRT tree carries no pdgId, only barcode, so quirk hits there are
+    # identified by matching against the quirk barcodes in the Truth tree.
+    barcode: Optional[np.ndarray] = None
+    quirk_barcodes: Optional[frozenset] = None
 
     def __len__(self) -> int:
         return len(self.x)
@@ -40,18 +44,23 @@ class HitSet:
 
     def select(self, mask: np.ndarray) -> "HitSet":
         return HitSet(self.system, self.x[mask], self.y[mask], self.z[mask],
-                      None if self.pdg is None else self.pdg[mask])
+                      None if self.pdg is None else self.pdg[mask],
+                      None if self.barcode is None else self.barcode[mask],
+                      self.quirk_barcodes)
+
+    def quirk_mask(self) -> np.ndarray:
+        """Which hits came from a quirk, by pdg id or failing that by barcode."""
+        if self.pdg is not None:
+            return np.abs(self.pdg) == QUIRK_PDGID
+        if self.barcode is not None and self.quirk_barcodes:
+            return np.isin(self.barcode, np.fromiter(self.quirk_barcodes, np.int64))
+        return np.zeros(len(self), dtype=bool)
 
     def quirks(self) -> "HitSet":
-        """Quirk hits. Empty when the ntuple carries no per-hit truth."""
-        if self.pdg is None:
-            return self.select(np.zeros(len(self), dtype=bool))
-        return self.select(np.abs(self.pdg) == QUIRK_PDGID)
+        return self.select(self.quirk_mask())
 
     def others(self) -> "HitSet":
-        if self.pdg is None:
-            return self
-        return self.select(np.abs(self.pdg) != QUIRK_PDGID)
+        return self.select(~self.quirk_mask())
 
 
 @dataclass
@@ -75,6 +84,7 @@ class Event:
     # Signal-process vertex, mm. The beamspot is applied at simulation time and
     # its z spread is tens of mm, so this is not the origin.
     vertex: Tuple[float, float, float] = (0.0, 0.0, 0.0)
+    quirk_barcodes: frozenset = frozenset()
 
     def all_hits(self) -> HitSet:
         sets = [h for h in self.hits.values() if len(h)]
@@ -172,22 +182,7 @@ class HitNtuple:
 
     def event(self, index: int) -> Event:
         evt = Event(index=index)
-        for system, (tree, det) in self._hit_trees.items():
-            if index >= tree.GetEntries():
-                continue
-            tree.GetEntry(index)
-            px, py, pz = (f"{det}_x", f"{det}_y", f"{det}_z") if det else ("x", "y", "z")
-            pdg_branch = f"{det}_pdgId" if det else None
-            pdg = None
-            if pdg_branch and hasattr(tree, pdg_branch):
-                pdg = np.fromiter(getattr(tree, pdg_branch), dtype=np.int64)
-            evt.hits[system] = HitSet(
-                system,
-                np.fromiter(getattr(tree, px), dtype=np.float64),
-                np.fromiter(getattr(tree, py), dtype=np.float64),
-                np.fromiter(getattr(tree, pz), dtype=np.float64),
-                pdg,
-            )
+        quirk_barcodes = frozenset()
         if self._truth_tree and index < self._truth_tree[1].GetEntries():
             tree = self._truth_tree[1]
             tree.GetEntry(index)
@@ -199,7 +194,36 @@ class HitNtuple:
                     pdg=int(pdg[i]), status=int(status[i]),
                     px=float(pxs[i]), py=float(pys[i]), pz=float(pzs[i]),
                 ))
+            if hasattr(tree, "barcode"):
+                bcs = list(tree.barcode)
+                # Any status: a quirk gets a fresh barcode each time the truth
+                # strategy regenerates it during simulation.
+                quirk_barcodes = frozenset(
+                    int(bcs[i]) for i in range(min(len(pdg), len(bcs)))
+                    if abs(int(pdg[i])) == QUIRK_PDGID)
             evt.vertex = _read_vertex(tree)
+            evt.quirk_barcodes = quirk_barcodes
+
+        for system, (tree, det) in self._hit_trees.items():
+            if index >= tree.GetEntries():
+                continue
+            tree.GetEntry(index)
+            px, py, pz = (f"{det}_x", f"{det}_y", f"{det}_z") if det else ("x", "y", "z")
+            pdg_branch = f"{det}_pdgId" if det else None
+            bc_branch = f"{det}_barcode" if det else "barcode"
+            pdg = None
+            if pdg_branch and hasattr(tree, pdg_branch):
+                pdg = np.fromiter(getattr(tree, pdg_branch), dtype=np.int64)
+            bc = None
+            if hasattr(tree, bc_branch):
+                bc = np.fromiter(getattr(tree, bc_branch), dtype=np.int64)
+            evt.hits[system] = HitSet(
+                system,
+                np.fromiter(getattr(tree, px), dtype=np.float64),
+                np.fromiter(getattr(tree, py), dtype=np.float64),
+                np.fromiter(getattr(tree, pz), dtype=np.float64),
+                pdg, bc, quirk_barcodes,
+            )
         return evt
 
     def events(self):
