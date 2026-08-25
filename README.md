@@ -2,11 +2,25 @@
 
 Event displays for ATLAS quirk simulation: inner detector, sim hits, quirk trajectories.
 
+## Dependencies
+
+`dump_hits` runs inside athena and uses the `HitAnalysis` package, which ships
+in a full **Athena** release (not AthSimulation).
+
+`display_cli` needs only `numpy`, `matplotlib` and PyROOT. All three come with
+an Athena release; outside one, any environment providing them works.
+
+## Setup
+
+```bash
+export ATLAS_LOCAL_ROOT_BASE=/cvmfs/atlas.cern.ch/repo/ATLASLocalRootBase
+source $ATLAS_LOCAL_ROOT_BASE/user/atlasLocalSetup.sh
+asetup Athena,25.0.70          # or any recent Athena release
+```
+
 ## Run
 
 ```bash
-source /home/jburzyns/ATLAS/Quirks/Simulation/setup_sim.sh   # athena + numpy/matplotlib/PyROOT
-
 python -m quirkviz.dump_hits HITS.pool.root -o hits.ntuple.root
 python -m quirkviz.display_cli hits.ntuple.root -o displays
 ```
