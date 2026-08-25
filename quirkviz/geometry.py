@@ -38,6 +38,17 @@ class InnerDetector:
                 seen.append(layer.system)
         return seen
 
+    def subset(self, systems) -> "InnerDetector":
+        """A copy holding only the named subdetectors."""
+        keep = set(systems)
+        barrel = [b for b in self.barrel if b.system in keep]
+        endcap = [d for d in self.endcap if d.system in keep]
+        r_max = max([b.radius for b in barrel], default=self.r_max)
+        z_max = max([abs(d.z) for d in endcap]
+                    + [b.half_z for b in barrel], default=self.z_max)
+        return InnerDetector(barrel=barrel, endcap=endcap,
+                             r_max=r_max, z_max=z_max)
+
     def radial_span(self, system: str) -> Tuple[float, float]:
         rs = [b.radius for b in self.barrel_by_system(system)]
         return (min(rs), max(rs)) if rs else (0.0, 0.0)

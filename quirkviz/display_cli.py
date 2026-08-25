@@ -36,8 +36,10 @@ def main(argv=None):
     ap.add_argument("--periods", default="auto",
                     help="oscillation periods to trace, or auto")
     ap.add_argument("--g4-log", help="athena log with DebugSteppingAction output")
-    ap.add_argument("--r-max", type=float, default=1100.0)
-    ap.add_argument("--z-max", type=float, default=3000.0)
+    ap.add_argument("--r-max", type=float, default=None,
+                    help="drawn radius in mm (default: fit the drawn subdetectors)")
+    ap.add_argument("--z-max", type=float, default=None,
+                    help="drawn |z| in mm (default: fit the drawn subdetectors)")
     ap.add_argument("--zoom", action="store_true",
                     help="frame on the quirk activity instead of the whole ID")
     ap.add_argument("--no-analytic", action="store_true")
@@ -54,7 +56,12 @@ def main(argv=None):
 
     with HitNtuple(args.ntuple) as nt:
         n = len(nt)
-        print(f"{args.ntuple}: {n} events, subdetectors {nt.systems}")
+        drawn = [s for s in nt.systems if args.trt or s != "TRT"]
+        det = ID_RUN3.subset(drawn)
+        r_max = args.r_max if args.r_max is not None else det.r_max * 1.08
+        z_max = args.z_max if args.z_max is not None else det.z_max * 1.08
+        print(f"{args.ntuple}: {n} events, subdetectors {nt.systems}, "
+              f"drawing {drawn}")
         indices = parse_events(args.events, n)
         if not indices:
             print("no events selected", file=sys.stderr)
@@ -70,7 +77,7 @@ def main(argv=None):
                     if args.periods == "auto":
                         paths, n_per = trace_through_volume(
                             truth, args.lambda_ev, args.mass,
-                            r_max=args.r_max, z_max=args.z_max,
+                            r_max=r_max, z_max=z_max,
                             vertex_mm=evt.vertex)
                     else:
                         n_per = float(args.periods)
@@ -89,12 +96,12 @@ def main(argv=None):
                 else:
                     print(f"event {i}: {len(truth)} final-state quirks, expected 2",
                           file=sys.stderr)
-            r_max, z_max = args.r_max, args.z_max
+            ev_r, ev_z = r_max, z_max
             if args.zoom:
-                r_max, z_max = quirk_extent(evt, analytic or g4_tracks)
-                r_max, z_max = min(r_max, args.r_max), min(z_max, args.z_max)
+                ev_r, ev_z = quirk_extent(evt, analytic or g4_tracks)
+                ev_r, ev_z = min(ev_r, r_max), min(ev_z, z_max)
             fig = plot_event(evt, tracks_g4=g4_tracks, tracks_analytic=analytic,
-                             det=ID_RUN3, r_max=r_max, z_max=z_max,
+                             det=det, r_max=ev_r, z_max=ev_z,
                              show_other=not args.hide_other_hits,
                              subtitle=subtitle)
             path = os.path.join(args.outdir, f"event_{i:04d}.{args.format}")
