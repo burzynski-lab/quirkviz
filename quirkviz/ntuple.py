@@ -196,8 +196,10 @@ class HitNtuple:
                 ))
             if hasattr(tree, "barcode"):
                 bcs = list(tree.barcode)
-                # Any status: a quirk gets a fresh barcode each time the truth
-                # strategy regenerates it during simulation.
+                # Any status: the generator records the quirk several times
+                # (status 23 hard process, 44 shower copies, 1 final state),
+                # each with its own barcode. Hits carry the status-1 barcode,
+                # but matching the whole set is a harmless superset.
                 quirk_barcodes = frozenset(
                     int(bcs[i]) for i in range(min(len(pdg), len(bcs)))
                     if abs(int(pdg[i])) == QUIRK_PDGID)
